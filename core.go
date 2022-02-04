@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"plugin"
 	"regexp"
 	"strings"
 	"unicode"
@@ -22,7 +23,7 @@ type Configuration struct {
 
 // Plugin
 type Plugin struct {
-	// TODO:Plugin Fields
+	Path string `json:"path"`
 }
 
 // RegularExpression
@@ -122,6 +123,7 @@ func (f *FileNode) Build(path string, configuration *Configuration) (*FileNode, 
 	if err := sc.Err(); err != nil {
 		return nil, fmt.Errorf("could not scan file: %v", err)
 	}
+	// Plugins
 	err = f.Plugin(configuration.Plugin)
 	if err != nil {
 		return nil, fmt.Errorf("could not run plugin: %v", err)
@@ -225,8 +227,26 @@ func (f *FileNode) Insert(lineNumber int, lineNode *LineNode) *FileNode {
 }
 
 // Plugin returns updated FileNode after processing Plugin array
-func (f *FileNode) Plugin(p *[]Plugin) error {
-	// TODO: Plugin Logic
+func (f *FileNode) Plugin(plugins *[]Plugin) error {
+	if plugins != nil {
+		for _, m := range *plugins {
+			fmt.Println(m.Path)
+			p, err := plugin.Open(m.Path)
+			if err != nil {
+				return err
+			}
+			fn, err := p.Lookup("FileNode")
+			if err != nil {
+				return err
+			}
+			pp, err := p.Lookup("Process")
+			if err != nil {
+				return err
+			}
+			*fn.(*FileNode) = *f
+			pp.(func())()
+		}
+	}
 	return nil
 }
 
