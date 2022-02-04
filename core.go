@@ -26,9 +26,9 @@ type Plugin struct {
 
 // RegularExpression
 type RegularExpression struct {
-	Find     string `json:"find"`
-	Replace  string `json:"replace"`
-	Compiled *regexp.Regexp
+	Find     string         `json:"find"`
+	Replace  string         `json:"replace"`
+	Compiled *regexp.Regexp `json:"-"`
 }
 
 // Comment contains all the options used to establish a comment on LineNode
