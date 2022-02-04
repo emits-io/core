@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 	"unicode"
 )
@@ -25,7 +26,9 @@ type Plugin struct {
 
 // RegularExpression
 type RegularExpression struct {
-	// TODO: Regular Expressions Fields
+	Find     string `json:"find"`
+	Replace  string `json:"replace"`
+	Compiled *regexp.Regexp
 }
 
 // Comment contains all the options used to establish a comment on LineNode
@@ -122,11 +125,33 @@ func (f *FileNode) Build(path string, configuration *Configuration) (*FileNode, 
 	if err != nil {
 		return nil, fmt.Errorf("could not run plugin: %v", err)
 	}
-	err = f.RegularExpression(configuration.RegularExpression)
-	if err != nil {
-		return nil, fmt.Errorf("could not perform regular expression: %v", err)
+	// Regular Expressions
+	if configuration.RegularExpression != nil {
+		err = configuration.CompileRegularExpressions()
+		if err != nil {
+			return nil, err
+		}
+		f.RegularExpression(configuration.RegularExpression)
 	}
 	return f, nil
+}
+
+// CompileRegularExpressions caches the expression compiliation before use; returns all known errors
+func (c *Configuration) CompileRegularExpressions() error {
+	var errors []string
+	r := *c.RegularExpression
+	for i, e := range r {
+		object, err := regexp.Compile(e.Find)
+		if err != nil {
+			errors = append(errors, err.Error())
+		} else {
+			r[i].Compiled = object
+		}
+	}
+	if len(errors) > 0 {
+		return fmt.Errorf("could not compile regular expression: %v", strings.Join(errors, ", "))
+	}
+	return nil
 }
 
 // LastNode returns the last FileNode of the last FileNode.Child
@@ -139,38 +164,32 @@ func (f *FileNode) LastNode() *FileNode {
 
 // LastIndent returns the last FileNode with the provided indent, or the last FileNode if not found
 func (f *FileNode) LastIndent(indent int) *FileNode {
-	if f.Line.Indent == indent {
-		return f
-	}
-	if f.Parent != nil {
-		return f.Parent.LastIndent(indent)
+	if f.Line != nil {
+		if f.Line.Indent == indent {
+			return f
+		}
+		if f.Parent != nil {
+			return f.Parent.LastIndent(indent)
+		}
 	}
 	return nil
 }
 
 // IsCommentWithinBlock returns true if FileNode satisfies CommentBlock criteria
 func (f *FileNode) IsCommentWithinBlock() bool {
-	if !f.LastNode().Line.CommentBlockEnd {
-		if f.LastNode().Line.CommentBlockStart || f.LastNode().Line.CommentBlockLine {
-			return true
-		}
-	}
-	return false
+	return !f.LastNode().Line.IsCommentBlockEnd() && f.LastNode().Line.IsCommentBlockStart()
 }
 
-// IsExposedWithinBlock returns true if FileNode satisfies EXPOSE criteria
+// IsExposedWithinBlock returns true if FileNode satisfies Comment and EXPOSE criteria
 func (f *FileNode) IsExposedWithinBlock() bool {
-	if !f.Line.IsComment() && f.LastNode().Line.Expose {
-		return true
-	}
-	return false
+	return !f.Line.IsComment() && f.LastNode().Line.IsExposed()
 }
 
 // Insert returns a FileNode based on the provided line number and LineNode
 func (f *FileNode) Insert(lineNumber int, lineNode *LineNode) *FileNode {
 	lastNode := f.LastNode()
 	lineNode.Number = lineNumber
-	if lineNode.Indent == lastNode.Line.Indent {
+	if lastNode.Line == nil || lineNode.Indent == lastNode.Line.Indent {
 		if lastNode.Parent != nil {
 			lastNode.Parent.Child = append(lastNode.Parent.Child, &FileNode{
 				Line:   lineNode,
@@ -211,23 +230,48 @@ func (f *FileNode) Plugin(p *[]Plugin) error {
 }
 
 // RegularExpression returns updated FileNode after processing RegularExpression array
-func (f *FileNode) RegularExpression(r *[]RegularExpression) error {
-	if len(f.Line.Value) > 0 {
-		// TODO: Regular Expressions Logic
+func (f *FileNode) RegularExpression(r *[]RegularExpression) {
+	if f.Line != nil {
+		if len(f.Line.Value) > 0 {
+			for _, e := range *r {
+				f.Line.Value = e.Compiled.ReplaceAllString(f.Line.Value, e.Replace)
+			}
+		}
 	}
 	for _, c := range f.Child {
 		c.RegularExpression(r)
 	}
-	return nil
+}
+
+// IsCommentBlockStart returns true if LineNode satisfies CommentBlock Start criteria
+func (l *LineNode) IsCommentBlockStart() bool {
+	if l == nil {
+		return false
+	}
+	return l.CommentBlockStart
+}
+
+// IsCommentBlockEnd returns true if LineNode satisfies CommentBlock End criteria
+func (l *LineNode) IsCommentBlockEnd() bool {
+	if l == nil {
+		return false
+	}
+	return l.CommentBlockEnd
 }
 
 // IsComment returns true if LineNode satisfies Comment criteria
 func (l *LineNode) IsComment() bool {
+	if l == nil {
+		return false
+	}
 	return l.CommentLine || l.CommentBlockStart || l.CommentBlockLine || l.CommentBlockEnd
 }
 
 // IsExposed returns true if LineNode satisfies EXPOSE criteria
 func (l *LineNode) IsExposed() bool {
+	if l == nil {
+		return false
+	}
 	return l.Expose
 }
 

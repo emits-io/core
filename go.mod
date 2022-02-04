@@ -1,3 +1,3 @@
-module github.com/emits-io/core/v1
+module github.com/emits-io/core
 
 go 1.17
