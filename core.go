@@ -14,6 +14,7 @@ const EXPOSE = ">"
 
 // Configuration contains all options used to establish processing of FileNode
 type Configuration struct {
+	Expose            bool
 	Comment           *Comment
 	Plugin            *[]Plugin
 	RegularExpression *[]RegularExpression
@@ -63,7 +64,7 @@ type FileNode struct {
 }
 
 // Line returns LineNode
-func Line(fileNode *FileNode, value string, comment *Comment) *LineNode {
+func Line(fileNode *FileNode, value string, configuration *Configuration) *LineNode {
 	// Indent
 	indent := 0
 	for i, r := range value {
@@ -77,17 +78,17 @@ func Line(fileNode *FileNode, value string, comment *Comment) *LineNode {
 	}
 	value = value[indent:]
 	// Explicit Comment
-	if strings.HasPrefix(value, comment.Block.Start) {
+	if strings.HasPrefix(value, configuration.Comment.Block.Start) {
 		data.CommentBlockStart = true
-		value = strings.TrimPrefix(value, comment.Block.Start)
-	} else if strings.HasSuffix(value, comment.Block.End) {
+		value = strings.TrimPrefix(value, configuration.Comment.Block.Start)
+	} else if strings.HasSuffix(value, configuration.Comment.Block.End) {
 		data.CommentBlockEnd = true
-		value = strings.TrimSuffix(value, comment.Block.End)
-	} else if strings.HasPrefix(value, comment.Line) {
+		value = strings.TrimSuffix(value, configuration.Comment.Block.End)
+	} else if strings.HasPrefix(value, configuration.Comment.Line) {
 		data.CommentLine = true
-		value = strings.TrimPrefix(value, comment.Line)
+		value = strings.TrimPrefix(value, configuration.Comment.Line)
 		// Expose (only through comment line)
-		if strings.HasSuffix(value, EXPOSE) {
+		if configuration.Expose && strings.HasSuffix(value, EXPOSE) {
 			data.Expose = true
 			value = strings.TrimSuffix(value, EXPOSE)
 		}
@@ -116,7 +117,7 @@ func (f *FileNode) Build(path string, configuration *Configuration) (*FileNode, 
 	for sc.Scan() {
 		i++
 		data := sc.Text()
-		f.Insert(i, Line(f, data, configuration.Comment))
+		f.Insert(i, Line(f, data, configuration))
 	}
 	if err := sc.Err(); err != nil {
 		return nil, fmt.Errorf("could not scan file: %v", err)

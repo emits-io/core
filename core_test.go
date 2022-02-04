@@ -59,11 +59,13 @@ func Test_Build_RegularExpression_Error(t *testing.T) {
 }
 
 func Test_Line_IsComment(t *testing.T) {
-	l := core.Line(&core.FileNode{}, "//", &core.Comment{
-		Line: "//",
-		Block: &core.CommentBlock{
-			Start: "/*",
-			End:   "*/",
+	l := core.Line(&core.FileNode{}, "//", &core.Configuration{
+		Comment: &core.Comment{
+			Line: "//",
+			Block: &core.CommentBlock{
+				Start: "/*",
+				End:   "*/",
+			},
 		},
 	})
 	b := l.IsComment()
@@ -71,13 +73,14 @@ func Test_Line_IsComment(t *testing.T) {
 		t.Errorf("IsComment() expects true, got %v", b)
 	}
 }
-
 func Test_Line_IsCommentBlockStart(t *testing.T) {
-	l := core.Line(&core.FileNode{}, "/*", &core.Comment{
-		Line: "//",
-		Block: &core.CommentBlock{
-			Start: "/*",
-			End:   "*/",
+	l := core.Line(&core.FileNode{}, "/*", &core.Configuration{
+		Comment: &core.Comment{
+			Line: "//",
+			Block: &core.CommentBlock{
+				Start: "/*",
+				End:   "*/",
+			},
 		},
 	})
 	b := l.IsCommentBlockStart()
@@ -87,11 +90,13 @@ func Test_Line_IsCommentBlockStart(t *testing.T) {
 }
 
 func Test_Line_IsCommentBlockEnd(t *testing.T) {
-	l := core.Line(&core.FileNode{}, "*/", &core.Comment{
-		Line: "//",
-		Block: &core.CommentBlock{
-			Start: "/*",
-			End:   "*/",
+	l := core.Line(&core.FileNode{}, "*/", &core.Configuration{
+		Comment: &core.Comment{
+			Line: "//",
+			Block: &core.CommentBlock{
+				Start: "/*",
+				End:   "*/",
+			},
 		},
 	})
 	b := l.IsCommentBlockEnd()
@@ -101,11 +106,14 @@ func Test_Line_IsCommentBlockEnd(t *testing.T) {
 }
 
 func Test_Line_IsExposed(t *testing.T) {
-	l := core.Line(&core.FileNode{}, "// >", &core.Comment{
-		Line: "//",
-		Block: &core.CommentBlock{
-			Start: "/*",
-			End:   "*/",
+	l := core.Line(&core.FileNode{}, "// >", &core.Configuration{
+		Expose: true,
+		Comment: &core.Comment{
+			Line: "//",
+			Block: &core.CommentBlock{
+				Start: "/*",
+				End:   "*/",
+			},
 		},
 	})
 	b := l.IsExposed()
