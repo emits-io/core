@@ -2,11 +2,14 @@ package core
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
-	"plugin"
+	"os/exec"
 	"regexp"
 	"strings"
+	"time"
 	"unicode"
 )
 
@@ -59,9 +62,20 @@ type LineNode struct {
 
 // FileNode contains the tree structure for LineNode
 type FileNode struct {
-	Line   *LineNode
-	Parent *FileNode
-	Child  []*FileNode
+	Line       *LineNode
+	Parent     *FileNode `json:"-"`
+	ParentLine int       `json:"Parent"`
+	Child      []*FileNode
+}
+
+// MarshalJSON sets the ParentLine, if available, for plugin use
+func (f *FileNode) MarshalJSON() ([]byte, error) {
+	if f.Parent != nil {
+		if f.Parent.Line != nil {
+			f.ParentLine = f.Parent.Line.Number
+		}
+	}
+	return json.Marshal(*f)
 }
 
 // Line returns LineNode
@@ -228,24 +242,34 @@ func (f *FileNode) Insert(lineNumber int, lineNode *LineNode) *FileNode {
 
 // Plugin returns updated FileNode after processing Plugin array
 func (f *FileNode) Plugin(plugins *[]Plugin) error {
+	// Generate a file for any external executable to consume
+	out := fmt.Sprintf("_temp.%v.json", time.Now().Nanosecond())
+	err := f.Write(out)
+	if err != nil {
+		return err
+	}
 	if plugins != nil {
-		for _, m := range *plugins {
-			fmt.Println(m.Path)
-			p, err := plugin.Open(m.Path)
+		for _, run := range *plugins {
+			cmd := exec.Command(run.Path, out)
+			cmd.Start()
+			cmd.Wait()
+			jsonFile, err := os.Open(out)
 			if err != nil {
 				return err
 			}
-			fn, err := p.Lookup("FileNode")
+			defer jsonFile.Close()
+			byteValue, err := ioutil.ReadAll(jsonFile)
 			if err != nil {
 				return err
 			}
-			pp, err := p.Lookup("Process")
-			if err != nil {
+			if json.Unmarshal(byteValue, &f) != nil {
 				return err
 			}
-			*fn.(*FileNode) = *f
-			pp.(func())()
 		}
+	}
+	err = os.Remove(out)
+	if err != nil {
+		return err
 	}
 	return nil
 }
@@ -299,4 +323,17 @@ func (l *LineNode) IsExposed() bool {
 // IsCommentOrExposed returns true if IsComment or IsExposed
 func (l *LineNode) IsCommentOrExposed() bool {
 	return l.IsComment() || l.IsExposed()
+}
+
+// Write generates and saves the FileNode to disk for use by plugins
+func (f *FileNode) Write(path string) error {
+	data, err := json.MarshalIndent(f, "", "\t")
+	if err != nil {
+		return err
+	}
+	err = os.WriteFile(path, data, 0644)
+	if err != nil {
+		return err
+	}
+	return nil
 }

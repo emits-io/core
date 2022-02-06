@@ -21,7 +21,14 @@ func Test_Build(t *testing.T) {
 				End:   "*/",
 			},
 		},
-		Plugin:            nil,
+		Plugin: &[]core.Plugin{
+			{
+				"./foo.js",
+			},
+			{
+				"./bar.js",
+			},
+		},
 		RegularExpression: &r,
 	})
 	if err != nil {
