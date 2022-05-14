@@ -1,6 +1,7 @@
 package core_test
 
 import (
+	"regexp"
 	"testing"
 
 	"github.com/emits-io/core"
@@ -31,6 +32,22 @@ func Test_Build(t *testing.T) {
 		},
 		RegularExpression: &r,
 	})
+	if err != nil {
+		t.Errorf("Build() expects nil, got %s", err)
+	}
+	emits, err := f.Emit()
+	if err != nil {
+		t.Errorf("Emit() expects nil, got %s", err)
+	}
+	var m = make([]*core.MetaData, 0)
+	m = append(m, &core.MetaData{
+		Keyword: "layout",
+		Value:   "foo",
+	})
+	err = emits.Write("core.go", "test.txt.json", m)
+	if err != nil {
+		t.Errorf("Write() expects nil, got %s", err)
+	}
 	if err != nil {
 		t.Errorf("Build() expects nil, got %s", err)
 	}
@@ -216,5 +233,53 @@ func Test_CompileRegularExpressions_Error(t *testing.T) {
 	err := configuration.CompileRegularExpressions()
 	if err == nil {
 		t.Errorf("CompileRegularExpressions() expects error, got %v", err)
+	}
+}
+
+func Test_Process_RegularExpression_Flag_Array(t *testing.T) {
+	regexEmits, err := regexp.Compile(core.EmitsRegex)
+	if err != nil {
+		t.Errorf("Process() expects nil, got %v", err)
+	}
+	regexFlag, err := regexp.Compile(core.EmitsFlagRegex)
+	if err != nil {
+		t.Errorf("Process() expects nil, got %v", err)
+	}
+	n := core.FileNode{
+		Line: &core.LineNode{
+			Value: ".keyword`flag:flag_value,foo:world` value",
+		},
+	}
+	_, err = n.Process(regexEmits, regexFlag)
+	if err != nil {
+		t.Errorf("Process() expects nil, got %v", err)
+	}
+}
+
+func Test_Process_RegularExpression_Flag_String(t *testing.T) {
+	regexEmits, err := regexp.Compile(core.EmitsRegex)
+	if err != nil {
+		t.Errorf("Process() expects nil, got %v", err)
+	}
+	regexFlag, err := regexp.Compile(core.EmitsFlagRegex)
+	if err != nil {
+		t.Errorf("Process() expects nil, got %v", err)
+	}
+	n := core.FileNode{
+		Line: &core.LineNode{
+			Value: ".keyword`hello world` value",
+		},
+	}
+	_, err = n.Process(regexEmits, regexFlag)
+	if err != nil {
+		t.Errorf("Process() expects nil, got %v", err)
+	}
+}
+
+func Test_File_Write_Error(t *testing.T){
+	n := core.EmitNode{}
+	err := n.Write("/null","/null", nil)
+	if err == nil {
+		t.Errorf("Write() expects error, got nil")
 	}
 }
