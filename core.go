@@ -15,10 +15,10 @@ import (
 
 const (
 	// Expose determines if nested FileNode are accessible outside of Comment
-	Expose = ">"
-	EmitsRegex = "^\\.(\\w+)(\\`(.+)\\`)?\\s(.+)"
+	Expose         = ">"
+	EmitsRegex     = "^\\.(\\w+)(\\`(.+)\\`)?\\s(.+)"
 	EmitsFlagRegex = "(.+?):(.+)"
-	FlagSplit = ","
+	FlagSplit      = ","
 )
 
 // Configuration contains all options used to establish processing of FileNode
@@ -29,12 +29,12 @@ type Configuration struct {
 	RegularExpression *[]RegularExpression
 }
 
-// Plugin
+// Plugin contains all options used to establish processing of FileNode
 type Plugin struct {
 	Path string `json:"path"`
 }
 
-// RegularExpression
+// RegularExpression contains all options used to establish processing of FileNode
 type RegularExpression struct {
 	Find     string         `json:"find"`
 	Replace  string         `json:"replace"`
@@ -47,13 +47,13 @@ type Comment struct {
 	Block *CommentBlock `json:"block"`
 }
 
-// CommentBlock contains all of the options used to establish a comment block on Comment
+// CommentBlock contains all the options used to establish a comment block on Comment
 type CommentBlock struct {
 	Start string `json:"start"`
 	End   string `json:"end"`
 }
 
-// LineNode contains all of the options used to process Plugin and RegEx functions
+// LineNode contains all the options used to process Plugin and RegEx functions
 type LineNode struct {
 	CommentBlockStart bool   `json:"commentStart,omitempty"`
 	CommentBlockLine  bool   `json:"commentLine,omitempty"`
@@ -73,12 +73,13 @@ type FileNode struct {
 	Child      []*FileNode `json:"child,omitempty"`
 }
 
-// EmitNode contains data used to by Emits
+// EmitNode contains data used by Emits
 type EmitNode struct {
 	Keyword string      `json:"keyword,omitempty"`
 	Flag    []*EmitFlag `json:"flag,omitempty"`
 	Value   string      `json:"value,omitempty"`
 	Data    []*EmitNode `json:"data,omitempty"`
+	Line    int         `json:"-"`
 }
 
 // EmitFlag contains options used by EmitNode
@@ -100,7 +101,7 @@ type MetaData struct {
 	Value   string `json:"value,omitempty"`
 }
 
-// Emits contains the standardized data structure based on EmitNode
+// EmitFile Emits contains the standardized data structure based on EmitNode
 type EmitFile struct {
 	Meta *EmitMeta   `json:"meta"`
 	Data []*EmitNode `json:"data"`
@@ -164,7 +165,11 @@ func (f *FileNode) Build(path string, configuration *Configuration) (*FileNode, 
 	if err != nil {
 		return nil, fmt.Errorf("could not open file: %v", err)
 	}
-	defer file.Close()
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+		}
+	}(file)
 	sc := bufio.NewScanner(file)
 	i := 0
 	for sc.Scan() {
@@ -333,13 +338,23 @@ func (f *FileNode) Plugin(plugins *[]Plugin) (intermediateError error, pluginErr
 		for _, run := range *plugins {
 			pluginError := func() error {
 				cmd := exec.Command(run.Path, out)
-				cmd.Start()
-				cmd.Wait()
+				err := cmd.Start()
+				if err != nil {
+					return err
+				}
+				err = cmd.Wait()
+				if err != nil {
+					return err
+				}
 				jsonFile, err := os.Open(out)
 				if err != nil {
 					return err
 				}
-				defer jsonFile.Close()
+				defer func(jsonFile *os.File) {
+					err := jsonFile.Close()
+					if err != nil {
+					}
+				}(jsonFile)
 				byteValue, err := ioutil.ReadAll(jsonFile)
 				if err != nil {
 					return err
@@ -446,6 +461,7 @@ func (f *FileNode) Emit() (*EmitNode, error) {
 func (f *FileNode) Process(regexEmits *regexp.Regexp, regexFlag *regexp.Regexp) (*EmitNode, error) {
 	e := &EmitNode{}
 	if f.Line != nil {
+		e.Line = f.Line.Number
 		e.Value = f.Line.Value
 		match := regexEmits.FindStringSubmatch(f.Line.Value)
 		if len(match) > 0 {
@@ -456,10 +472,10 @@ func (f *FileNode) Process(regexEmits *regexp.Regexp, regexFlag *regexp.Regexp) 
 				if len(flags) > 0 {
 					for _, flag := range flags {
 						flagData := &EmitFlag{}
-						fmatch := regexFlag.FindStringSubmatch(flag)
-						if len(fmatch) > 0 {
-							flagData.Name = fmatch[1]
-							flagData.Value = fmatch[2]
+						flagMatch := regexFlag.FindStringSubmatch(flag)
+						if len(flagMatch) > 0 {
+							flagData.Name = flagMatch[1]
+							flagData.Value = flagMatch[2]
 						} else {
 							flagData.Value = flag
 						}
